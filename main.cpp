@@ -6,15 +6,13 @@
 using namespace std;
 using namespace search_engine;
 
-int main(void){
+int main(int argc, char* argv[]){
 
-	Engine* eng = new Engine();
+	Engine* eng = new Engine(argv[1]);
 	eng->Setup();
 	string query;
-	while(true){
-		getline(cin, query);
-		eng->Query(query);
-	}
+	getline(cin, query);
+	eng->Query(query);
 	
 	eng->Close();
 

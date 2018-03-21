@@ -31,10 +31,12 @@ class Engine{
 	PassageTABLE* ptable_;
 	LocalTermTABLE* lterm_;
 	GlobalTermTABLE* gterm_;
+    string root_path_;
 
  public:
  	Engine() = default;
  	~Engine(){ }
+    Engine(string path):root_path_(path) { }
 	void Setup(){
 		openStemmer_();
 		openIndex_();
@@ -61,22 +63,6 @@ class Engine{
 			}
 		}
 		sort(passages.begin(), passages.end());
-
-		// Output // 
-		// print id
-		// for(auto &p : passages){
-		// 	cout << p.id << " "<< flush;
-		// }
-		// cout << endl << flush;
-		// read title to string
-		// notice, \r at the end of get_line() ret
-		// cout << endl << flush;
-		// vector<string> titles;
-		// for(auto &p : passages){
-		// 	cout << text_->get_line(p.id, 1) << endl;
-		// 	titles.push_back(text_->get_line(p.id, 1));
-		// }
-
 		// mod output //
 		// title
 		vector<string> titles;
@@ -90,7 +76,7 @@ class Engine{
 		for(auto &p : passages){
 			string name = get<0>(ptable_->Query(p.id));
 			int idx;
-			if(( idx = name.find('.')) < name.size() - 1 && name.find("sonnets") != 0){
+			if(( idx = name.find('.')) < name.size() - 1 && name.find("sonnet") != 0){
 				string book = name.substr(0,idx);
 				links.push_back( head+ book+'/'+name +tail );
 			}
@@ -106,18 +92,31 @@ class Engine{
 				first = get<1>(lterm_->Query(t.term, p.id));
 				if(first > 0)break;
 			}
-			sentences.push_back(text_->get_line(p.id, first));
+			if(first <= 0)
+				sentences.push_back(text_->get_line(p.id, 1));
+			else
+				sentences.push_back(text_->get_line(p.id, first) + text_->get_line(p.id, first+1) + text_->get_line(p.id, first+2));
 		}
 
-	}
+        int n = titles.size();
+        cout << "{\"data\":[";
+        for (int i = 0; i < n; i++) {
+            cout << "{";
+            cout << "\"title\":\"" << titles[i] << "\",";
+            cout << "\"link\":\"" << links[i] << "\",";
+            cout << "\"sentence\":\"" << sentences[i] << "\""; 
+            cout << "}" << (i < n - 1 ? "," : ""); 
+        }
+        cout << "]}";
+    }
 
  private:
  	// Open Subroutines //
-	void openStemmer_(void){
+	void openStemmer_(void){ 
 		stemmer_ = new Stemmer();
 	}
 	void openIndex_(void){
-		index_map_ = new MemMap("./data/index");
+		index_map_ = new MemMap((root_path_ + "/data/index").c_str());
 		index_map_->Map("index_map");
 		char* index_ptr(index_map_->get_ptr());
 		index_ = new IndexRefer(index_ptr);
@@ -125,14 +124,14 @@ class Engine{
 	void openText_(){
 
 		MemMap temp_map;
-		temp_map.Open("./data/text_manifest");
+		temp_map.Open((root_path_ + "/data/text_manifest").c_str());
 		temp_map.Map("text_manifest_map");
 		string text_manifest_str(temp_map.get_ptr());
 		// de-serialize
 		text_manifest_ = new Manifest(text_manifest_str);
 		temp_map.Close(); // close disc map
 
-		text_map_ = new MemMap("./data/text");
+		text_map_ = new MemMap((root_path_ + "/data/text").c_str());
 		text_map_->Map("text_map");
 		static string text_str(text_map_->get_ptr()); // bad practice
 		text_ = new TextRefer();
@@ -141,7 +140,7 @@ class Engine{
 	}
 	void openDatabase_(void){
 
-		db_ = new DB("./data/main.db");
+		db_ = new DB((root_path_ + "/data/main.db").c_str());
 		ptable_ = new PassageTABLE(db_);
 		ptable_->Init();
 		lterm_ = new LocalTermTABLE(db_);
@@ -220,16 +219,12 @@ class Engine{
 		if(tokens.empty())return bits;
 		bits.set();
 		int occu;
-		bool not_set = false;
 		for(auto token : tokens){
 			if(token.op)continue; // not op
 			occu = get<2>(gterm_->Query(token.id));
-			if(occu > kPassageSize / 9.0){
-				not_set = true;
+			if(occu > kPassageSize / 9.0)
 				bits = bits & index_->get_index(token.id);
-			}
 		}
-		if(!not_set)bits.reset();
 		for(auto token : tokens){
 			occu = get<2>(gterm_->Query(token.id));
 			if(occu <= kPassageSize / 9.0)
@@ -255,9 +250,9 @@ class Engine{
 	// Ranking Subroutines //
 	// weight calc
 	inline float get_weight(int p_id, string term){
-		float tf = static_cast<float>(get<0>(lterm_->Query(term, p_id))) / ( static_cast<float>(get<1>(ptable_->Query(p_id))) );
+		float tf = static_cast<float>(get<0>(lterm_->Query(term, p_id))) / sqrt( static_cast<float>(get<1>(ptable_->Query(p_id))) );
 		float idf = log( static_cast<float>(kPassageSize) / get<2>(gterm_->Query(term)) );
-		return tf / idf;
+		return tf * idf;
 	}
 
 
