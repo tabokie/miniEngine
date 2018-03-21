@@ -31,7 +31,7 @@ Derived :
 #include <sstream>
 #include <tuple> /* tuple<*>, get<x>, make_tuple() */
 #include <bitset> /* bitset<n> */
-#include <windows.h>
+// #include <windows.h>
 
 namespace db_interface{
 

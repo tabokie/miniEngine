@@ -61,20 +61,54 @@ class Engine{
 			}
 		}
 		sort(passages.begin(), passages.end());
+
 		// Output // 
-		// print
-		for(auto &p : passages){
-			cout << p.id << " "<< flush;
-		}
-		cout << endl << flush;
+		// print id
+		// for(auto &p : passages){
+		// 	cout << p.id << " "<< flush;
+		// }
+		// cout << endl << flush;
 		// read title to string
 		// notice, \r at the end of get_line() ret
-		cout << endl << flush;
+		// cout << endl << flush;
+		// vector<string> titles;
+		// for(auto &p : passages){
+		// 	cout << text_->get_line(p.id, 1) << endl;
+		// 	titles.push_back(text_->get_line(p.id, 1));
+		// }
+
+		// mod output //
+		// title
 		vector<string> titles;
 		for(auto &p : passages){
-			cout << text_->get_line(p.id, 1) << endl;
 			titles.push_back(text_->get_line(p.id, 1));
 		}
+		// link
+		vector<string> links;
+		string head = "http://shakespeare.mit.edu/";
+		string tail = ".html";
+		for(auto &p : passages){
+			string name = get<0>(ptable_->Query(p.id));
+			int idx;
+			if(( idx = name.find('.')) < name.size() - 1 && name.find("sonnets") != 0){
+				string book = name.substr(0,idx);
+				links.push_back( head+ book+'/'+name +tail );
+			}
+			else{
+				links.push_back( head + "Poetry/" + name + tail);
+			}
+		}
+		// sentence
+		vector<string> sentences;
+		for(auto &p : passages){
+			int first = 0;
+			for(auto &t : tokens){
+				first = get<1>(lterm_->Query(t.term, p.id));
+				if(first > 0)break;
+			}
+			sentences.push_back(text_->get_line(p.id, first));
+		}
+
 	}
 
  private:
@@ -186,12 +220,16 @@ class Engine{
 		if(tokens.empty())return bits;
 		bits.set();
 		int occu;
+		bool not_set = false;
 		for(auto token : tokens){
 			if(token.op)continue; // not op
 			occu = get<2>(gterm_->Query(token.id));
-			if(occu > kPassageSize / 9.0)
+			if(occu > kPassageSize / 9.0){
+				not_set = true;
 				bits = bits & index_->get_index(token.id);
+			}
 		}
+		if(!not_set)bits.reset();
 		for(auto token : tokens){
 			occu = get<2>(gterm_->Query(token.id));
 			if(occu <= kPassageSize / 9.0)
