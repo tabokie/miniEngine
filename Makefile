@@ -24,7 +24,7 @@ $(LIB)/sqlite3/sqlite3.o : $(LIB)/sqlite3/sqlite3.c
 $(LIB)/sqlite3/shell.o : $(LIB)/sqlite3/shell.c
 	gcc -c $(LIB)/sqlite3/shell.c -o $(LIB)/sqlite3/shell.o
 
-.PHONY
+.PHONY : clean
 clean : 
 	-rm main.o $(LIB)/stem/stem_algorithm.o $(LIB)/stem/api.o $(LIB)/stem/utilities.o \
 	$(LIB)/sqlite3/sqlite3.o $(LIB)/sqlite3/shell.o

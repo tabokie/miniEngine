@@ -52,7 +52,7 @@ static void stem_file(struct SN_env * z, FILE * f_in, FILE * f_out) {
         }
     }
 
-// cursor at $
+// assert cursor at $
 inline int get_title(FILE * f_data){
     int ch;
     int found_title = 0;

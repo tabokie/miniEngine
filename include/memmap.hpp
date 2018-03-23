@@ -4,14 +4,12 @@
 #include <string>
 #include <iostream>
 
-#ifdef __WIN64
+// Memory Map OS API //
+// for windows
+#if defined(__WIN64) || defined(__WIN32)
 #include <windows.h>
-#endif
-
-#ifdef __WIN32
-#include <windows.h>
-#endif
-
+#endif // __WINXX
+// for linux
 #ifdef __linux
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -20,11 +18,16 @@
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
-#endif
+#endif // __linux
 
 namespace disc_reader{
 
+// Memory Map encapsulation for OSs //
+
+// for windows
 #if defined(__WIN64) || defined(__WIN32)
 
 namespace win_mmap{
@@ -89,6 +92,7 @@ class MemMap{
 
  private:
 
+ 	// handles and flags
 	HANDLE file_handle_;
 	bool file_opened;
 	HANDLE map_handle_;
@@ -112,7 +116,7 @@ class MemMap{
 	}
 
 
-};
+}; /* class MemMap */
 
 
 } /* namespace win_mmap */
@@ -122,7 +126,7 @@ using namespace win_mmap;
 #endif /* __WINXX */
 
 
-
+// for linux
 #if defined(__linux)
 
 namespace linux_mmap{
@@ -148,7 +152,7 @@ class MemMap{
 	bool Map(const char* map_name){
 		if(file_mapped)return false;
 		if(!file_opened)return false;
-		ptr_ = (char*)mmap(NULL, file_size,PROT_READ, MAP_SHARED, fd, 0);
+		ptr_ = (char*)mmap(NULL, file_size,PROT_READ, MAP_SHARED, f_id, 0);
 		if(ptr_ == NULL){
 			Error_();
 		}
@@ -196,7 +200,7 @@ class MemMap{
 	}
 
 
-};
+}; /* class MemMap */
 
 } /* namespace linux_mmap */
 

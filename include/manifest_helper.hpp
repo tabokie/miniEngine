@@ -1,7 +1,7 @@
 #ifndef DISC_MANIFEST_HELPER_HPP_
 #define DISC_MANIFEST_HELPER_HPP_
 
-#include <sstream>
+#include <sstream> /* istringstream */
 #include <string>
 #include <iostream>
 #include <vector>
@@ -10,6 +10,7 @@ namespace disc_reader{
 
 using namespace std;
 
+// data struct for passage meta //
 struct manifest_meta{
 	int id;
 	size_t offset;
@@ -21,7 +22,7 @@ struct manifest_meta{
 	void push(size_t item){sentences.push_back(item);}
 };
 
-// Serialize JSON manifest
+// Serialize JSON manifest from string //
 // {"id" : i, "offset" : i, "sentences": [i,,]},
 class Manifest{
 	vector<manifest_meta> p_vec_;
@@ -67,27 +68,28 @@ class Manifest{
 				m.push(temp);
 			}
 			p_idx = end_idx;
-			// cout << "**" << m.sentences.size() << "* ";
 
 			p_vec_.push_back(m);
 
-			p_idx = str.find("},",p_idx);
+			p_idx = str.find("},",p_idx); // parse obj end
 		}
-		// std::sort(p_vec_.begin(), p_vec_.end(),[]bool(manifest_meta a, manifest_meta b){return a.id < b.id;} )
 	}
+	// for Debug
 	void Put(void){
 		for(auto p : p_vec_){
 			cout << p.id << " " << p.offset << endl;
 		}
 	}
+	// accessor //
 	size_t size(void){
 		return p_vec_.size();
 	}
+	// get item from vector
 	manifest_meta get_item(size_t idx){
 		if(idx > p_vec_.size())return manifest_meta();
 		return p_vec_[idx-1];
 	}
-};
+}; /* class Manifest */
 
 
 } /* namespace disc_reader */

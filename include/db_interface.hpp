@@ -1,37 +1,40 @@
 #ifndef DB_INTERFACE_HPP_
 #define DB_INTERFACE_HPP_
 
-/*
-Base :
-	class DB(const char* db_name);
-		class TABLE(DB* db_ptr);
-		TABLE.Init();
-		TABLE.Insert(*);
-		TABLE.Query(*);
-	DB.Close();
-Derived :
-	class PassageTABLE:
-		bool Insert(int id, string name, int size = -1);
-		tuple<string name, int size> Query(int id);
-	class LocalTermTABLE:
-		bool Insert(string name, int id, int freq = -1, int first = -1, int last = -1);
-		tuple<int freq, int first, int last> Query(string name, int id);
-	class GlobalTermTABLE:
-		deleted : // bool Insert(int id, string name, int freq = -1, int occu = -1);
-		tuple<int id, int freq, int occu> Query(string name);
-		tuple<string term, int freq, int occu> Query(int id);
-	class PredictTABLE:
-		bool Insert(string term, string full, string first, string second);
-		tuple<string, string, string> Query(string term);
-*/
+/*			   //		//
+//	Interface  //		//
 
+* Base :
+class DB(const char* db_name);
+	class TABLE(DB* db_ptr);
+	TABLE.Init();
+	TABLE.Insert(*);
+	TABLE.Query(*);
+DB.Close();
+
+* Derived :
+class PassageTABLE:
+	bool Insert(int id, string name, int size = -1);
+	tuple<string name, int size> Query(int id);
+class LocalTermTABLE:
+	bool Insert(string name, int id, int freq = -1, int first = -1, int last = -1);
+	tuple<int freq, int first, int last> Query(string name, int id);
+class GlobalTermTABLE:
+	deleted : // bool Insert(int id, string name, int freq = -1, int occu = -1);
+	tuple<int id, int freq, int occu> Query(string name);
+	tuple<string term, int freq, int occu> Query(int id);
+class PredictTABLE:
+	bool Insert(string term, string full, string first, string second);
+	tuple<string, string, string> Query(string term);
+*/						//
+
+// sqlite3 api //
 #include "sqlite3.h" /* sqlite3_open(), sqlite3_close(), sqlite3_exec() */
 
 #include <iostream>
 #include <sstream>
 #include <tuple> /* tuple<*>, get<x>, make_tuple() */
 #include <bitset> /* bitset<n> */
-// #include <windows.h>
 
 namespace db_interface{
 
@@ -46,6 +49,7 @@ stringstream kStrStream;
 bool kResponding = false;
 int kRespondingSize = 0;
 
+// callback when sqlite query return //
 static int query_callback(void *NotUsed, int argc, char **argv, char **azColName){
 	// sending to global stream
 	kStrStream << '$';

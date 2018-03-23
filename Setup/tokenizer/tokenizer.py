@@ -3,56 +3,67 @@ import urllib
 import re
 import os
 
+# data in upper path
 path = os.path.join(os.path.dirname(__file__),"..")
 
+# url obj with name
 class url_object:
 	def __init__(self,str0, str1):
 		self.name = str0
 		self.url = str1
 
-def get_name(str):
-	ret = []
-	for i in str:
-		if not i == '/':
-			ret.append(i)
-	ret = "".join(ret)
-	while True:
-		idx = ret.find(".html")
-		if idx == -1:
-			break
-		ret = ret[:idx]
-	return ret
-
-def is_valid_link(str):
-	ban_list = ["full.html", "/Shakespeare", "/shake.css"]
-	if len(str) > 25 or str in ban_list :
-		return False
-	return True
-
+# traverse father site
 def Traverse(url_):
 	head = ""
+	# get head link
 	for i in range(len(url_))[::-1]:
 		if url_[i] == '/':
 			head = url_[:i+1]
 			break
+	# open html raw
 	raw = urllib.urlopen(url_).read()
+	# parse links
 	raw_sublinks = re.findall(r"(?<=href=\").+?(?=\")|(?<=href=\').+?(?=\')" ,raw)
 	raw_sublinks += re.findall(r"(?<=HREF=\").+?(?=\")|(?<=HREF=\').+?(?=\')" ,raw)
-	sublinks = []
 	ret = []
 	for link in raw_sublinks:
 		if is_valid_link(link):
-			# sublinks.append(link)
 			ret.append(url_object(get_name(link),head+link))
+	# return list of url_obj
 	return ret
 
+# get name of url link
+def get_name(str):
+	ret = []
+	for i in str:
+		if not i == '/': # clip off /
+			ret.append(i)
+	# convert to str
+	ret = "".join(ret)
+	while True:
+		# clip off html
+		idx = ret.find(".html")
+		if idx == -1:
+			break
+		ret = ret[:idx]
+	# return str
+	return ret
+
+# test if valid link
+def is_valid_link(str):
+	# mannually set
+	ban_list = ["full.html", "/Shakespeare", "/shake.css"]
+	if len(str) > 25 or str in ban_list :
+		return False
+	return True
+#test if valid plain text
 def is_valid_text(str):
 	scope = 50
 	head_str = str[:scope]
 	if head_str.find("404") >= 0:
 		return False
 	return True
-
+# get full name from site link name
 def get_full_name(str):
 	dict_ = {"allswell":"All's Well That Ends Well",
 	"asyoulikeit":"As You Like It",
@@ -110,10 +121,12 @@ def get_full_name(str):
 # tokenized file write
 class Tokenizer:
 	def __init__(self, str0, str1, str2, str3):
+		# set path
 		self.token_path = path+str0
 		self.raw_path = path+str1
 		self.manifest_path = path+str2
 		self.meta_path = path+str3
+		# reset info
 		self.id = 0
 		self.text = ""
 		self.tokens = []
@@ -125,16 +138,15 @@ class Tokenizer:
 	def run(self, name, txt):
 		self.is_poem = True if name.find(".") == -1 or name.find("sonnet") >= 0 else False
 		self.name = name
-		print name
+		print name # log
 		self.text = txt
 		self.id += 1
-		self.clip()
-
-		self.write_meta()
-		self.write_raw()
-		self.write_manifest()
-		self.tokenize()
-		self.write_token()
+		self.clip() # clip redundent text
+		self.write_meta() # write  id,name meta of text
+		self.write_raw() # write text
+		self.write_manifest() # write offset of text
+		self.tokenize() # tokenize text
+		self.write_token() # write tokens
 	def clip(self):
 		if self.is_poem:
 			lines = 8
@@ -210,8 +222,6 @@ class Tokenizer:
 				offset+=2
 				file.write('\n')
 				self.manifest[2].append(offset)
-
-
 	def write_manifest(self):
 		with open(self.manifest_path, "a") as file:
 			file.write("{\n    ")
@@ -273,23 +283,26 @@ class Tokenizer:
 				elif not in_interval:
 					file.write('\n')
 					in_interval = True
-					
 	def free(self):
 		self.text = ""
 		self.tokens = []
 
-
-tokenizer = Tokenizer('/data/raw_token','/data/text','/data/text_manifest','/data/tokenizer_meta')
-
-addition_list = [url_object(name,"http://shakespeare.mit.edu/Poetry/"+name+".html") for name in ["LoversComplaint","RapeOfLucrece","VenusAndAdonis","elegy"]]
-books = Traverse("http://shakespeare.mit.edu/index.html")
-sections = []
-for book in books:
-	sections += Traverse(book.url)
-sections += addition_list
-for section in sections:
-	raw = BeautifulSoup(urllib.urlopen(section.url))
-	if is_valid_text(raw.get_text()):
-		tokenizer.run(section.name, raw.get_text())
-		tokenizer.free()
+if __name__ == '__main__':
+	# file path
+	tokenizer = Tokenizer('/data/raw_token','/data/text','/data/text_manifest','/data/tokenizer_meta')
+	# poetry in 2nd depth
+	addition_list = [url_object(name,"http://shakespeare.mit.edu/Poetry/"+name+".html") for name in ["LoversComplaint","RapeOfLucrece","VenusAndAdonis","elegy"]]
+	# traver other site with 3rd depth 
+	books = Traverse("http://shakespeare.mit.edu/index.html")
+	sections = []
+	for book in books:
+		sections += Traverse(book.url)
+	sections += addition_list
+	for section in sections:
+		# get plain text
+		raw = BeautifulSoup(urllib.urlopen(section.url))
+		if is_valid_text(raw.get_text()):
+			# write to file
+			tokenizer.run(section.name, raw.get_text())
+			tokenizer.free()
 

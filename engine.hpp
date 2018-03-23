@@ -17,6 +17,8 @@ using namespace db_interface;
 class Engine{
 
  private:
+ 	// data path
+    string root_path_;
  	// stemmer
 	Stemmer* stemmer_;
 	// read index
@@ -27,16 +29,16 @@ class Engine{
 	Manifest* text_manifest_;
 	TextRefer* text_;
 	// read database
-	DB* db_;
-	PassageTABLE* ptable_;
+	DB* db_; // main db
+	PassageTABLE* ptable_; // tables
 	LocalTermTABLE* lterm_;
 	GlobalTermTABLE* gterm_;
-    string root_path_;
 
  public:
- 	Engine() = default;
+ 	// default as current res
+	Engine(string path = "."):root_path_(path) { }
  	~Engine(){ }
-    Engine(string path):root_path_(path) { }
+    
 	void Setup(){
 		openStemmer_();
 		openIndex_();
@@ -47,29 +49,33 @@ class Engine{
 		closeMap_();
 		closeDatabase_();
 	}
-	// query string -> id and operation -> bitset bool op => index vector
-	// index vector -> ranking -> sort
+	// Main Query Routine //
+	// query string -> terms -> ids 
+	// -> bitset -> index vector
+	// -> ranking -> sort -> output
 	void Query(string str){
-		// Parse //
+		// Parse Token //
 		auto tokens = ParseToken(str); 
-		// Fetch Index // 
+		// Fetch Index (with bool arith) // 
 		auto bits = ComposeIndex(tokens);
+		// Map to ID Vector //
 		vector<passage_> passages = MapIndex(bits);
 		// Ranking //
 		for(auto & p : passages){
 			for(auto & t : tokens){
-				if(!t.op)
+				if(!t.op) // if not 'NOT'
 					p.rank = get_weight( p.id, t.term );
 			}
 		}
+		// Sort as rank //
 		sort(passages.begin(), passages.end());
-		// mod output //
-		// title
+		// Terminal Output //
+		// titles
 		vector<string> titles;
 		for(auto &p : passages){
 			titles.push_back(text_->get_line(p.id, 1));
 		}
-		// link
+		// links
 		vector<string> links;
 		string head = "http://shakespeare.mit.edu/";
 		string tail = ".html";
@@ -84,7 +90,7 @@ class Engine{
 				links.push_back( head + "Poetry/" + name + tail);
 			}
 		}
-		// sentence
+		// sentences
 		vector<string> sentences;
 		for(auto &p : passages){
 			int first = 0;
@@ -93,11 +99,11 @@ class Engine{
 				if(first > 0)break;
 			}
 			if(first <= 0)
-				sentences.push_back(text_->get_line(p.id, 1));
+				sentences.push_back(text_->get_line(p.id, 2));
 			else
 				sentences.push_back(text_->get_line(p.id, first) + text_->get_line(p.id, first+1) + text_->get_line(p.id, first+2));
 		}
-
+		// JSON putter
         int n = titles.size();
         cout << "{\"data\":[";
         for (int i = 0; i < n; i++) {
@@ -116,31 +122,36 @@ class Engine{
 		stemmer_ = new Stemmer();
 	}
 	void openIndex_(void){
+		// Map index from disc
 		index_map_ = new MemMap((root_path_ + "/data/index").c_str());
 		index_map_->Map("index_map");
 		char* index_ptr(index_map_->get_ptr());
+		// init indexRefer
 		index_ = new IndexRefer(index_ptr);
 	}
 	void openText_(){
-
+		// Map manifest from disc
 		MemMap temp_map;
 		temp_map.Open((root_path_ + "/data/text_manifest").c_str());
 		temp_map.Map("text_manifest_map");
 		string text_manifest_str(temp_map.get_ptr());
-		// de-serialize
+		// Setup Manifest by de-serialize
 		text_manifest_ = new Manifest(text_manifest_str);
 		temp_map.Close(); // close disc map
 
+		// Map Text from disc 
 		text_map_ = new MemMap((root_path_ + "/data/text").c_str());
 		text_map_->Map("text_map");
 		static string text_str(text_map_->get_ptr()); // bad practice
+		// init textRefer
 		text_ = new TextRefer();
 		text_->set_manifest(text_manifest_);
 		text_->set_text(&text_str);
 	}
 	void openDatabase_(void){
-
+		// open DB file
 		db_ = new DB((root_path_ + "/data/main.db").c_str());
+		// link tables interface to DB
 		ptable_ = new PassageTABLE(db_);
 		ptable_->Init();
 		lterm_ = new LocalTermTABLE(db_);
@@ -148,7 +159,6 @@ class Engine{
 		gterm_ = new GlobalTermTABLE(db_);
 		gterm_->Init();
 	}
-
 	// Close Subroutines
 	void closeMap_(void){
 		index_map_->Close();
@@ -170,12 +180,34 @@ class Engine{
 		float rank;
 		passage_(int i = -1, float r = 0):id(i),rank(r){ }
 		~passage_(){ }
-		// inverse order
+		// inverse order to rank passage
 		bool operator < (passage_ that) const{
 			return rank > that.rank;
 		}
 	};
 
+	// Parse Routine //
+	vector<term_> ParseToken(string str){
+
+		bool not_flag = false; // flag for bool op
+		istringstream str_s(str); // make stream
+		string term;
+		int id;
+		vector<term_> v;
+		while(getline(str_s, term, ' ')){
+			if(term == string("-")){ // if 'NOT' used
+				not_flag = true;
+			}
+			// call stemmer
+			term = stemmer_->Stem(lower(term));
+			// get id
+			int id = get<0>(gterm_->Query(term));
+			if(id <= 0)continue;
+			// push to buffer
+			v.push_back(term_(id,term, not_flag));
+		}
+		return v;
+	}
 	// Parse Subroutine //
 	// get lower text form of string
 	static string lower(string str){
@@ -192,46 +224,28 @@ class Engine{
 		new_ptr[cur] = '\0';
 		return string(new_ptr);
 	}
-	// Parse Routine //
-	vector<term_> ParseToken(string str){
-
-		bool not_flag = false;
-		istringstream str_s(str);
-		string term;
-		int id;
-		vector<term_> v;
-		while(getline(str_s, term, ' ')){
-			if(term == string("-")){
-				not_flag = true;
-			}
-			term = stemmer_->Stem(lower(term));
-			int id = get<0>(gterm_->Query(term));
-			if(id <= 0)continue;
-			v.push_back(term_(id,term, not_flag));
-		}
-
-		return v;
-	}
+	
 	// Indexer Subroutines //
 	// fetch bitset form of index from file
 	bitset<kPassageSize> ComposeIndex(vector<term_> tokens){
-		bitset<kPassageSize> bits;
-		if(tokens.empty())return bits;
-		bits.set();
+		bitset<kPassageSize> bits; // initial bitset container
+		if(tokens.empty())return bits; // if no passage selected
+		bits.set(); // to 1s
 		int occu;
 		for(auto token : tokens){
 			if(token.op)continue; // not op
 			occu = get<2>(gterm_->Query(token.id));
-			if(occu > kPassageSize / 9.0)
+			if(occu > kPassageSize / 9.0) // if frequent
 				bits = bits & index_->get_index(token.id);
 		}
 		for(auto token : tokens){
 			occu = get<2>(gterm_->Query(token.id));
-			if(occu <= kPassageSize / 9.0)
+			if(occu <= kPassageSize / 9.0) // if not frequent
 				bits = bits | index_->get_index(token.id);
 		}
 		for(auto token : tokens){
 			if(!token.op)continue; // not op
+			// inverse and &
 			bits = bits & ~(index_->get_index(token.id));
 		}
 		return bits;
@@ -250,7 +264,9 @@ class Engine{
 	// Ranking Subroutines //
 	// weight calc
 	inline float get_weight(int p_id, string term){
+		// tf = NUM(term t in passage) / NUM(term x in passage)
 		float tf = static_cast<float>(get<0>(lterm_->Query(term, p_id))) / sqrt( static_cast<float>(get<1>(ptable_->Query(p_id))) );
+		// idf = log( NUM(passage) / NUM(passage with term t in it) ) // 0 if t is stop word
 		float idf = log( static_cast<float>(kPassageSize) / get<2>(gterm_->Query(term)) );
 		return tf * idf;
 	}
@@ -263,16 +279,3 @@ class Engine{
 
 #endif /* ENGINE_HPP_ */
 
-// float cluster_index(vector<float> v1, vector<float> v2){
-// 	vector<float> index;
-// 	int size = v1.size();
-// 	for(int i=0;i<size;i++){
-// 		index.push_back((v1[i]+v2[i])/(v2[i]-v1[i]));
-// 	}
-// 	return index.var();
-// }
-
-// float get_weight(p_id, term){
-// 	local_term_table.get_freq(p_id, term) / passage_table.get_size(p_id) * log(passage.size() / global_term_table.get_occu() );
-// 	local_term_table.get_freq(p_id, term) / sqrt(passage_table.get_size(p_id)) * log(passage.size() / global_term_table.get_occu() );
-// }
